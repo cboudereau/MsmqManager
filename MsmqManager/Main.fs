@@ -65,6 +65,7 @@ error, see usage :
 
 ==Export log==
 /c exportFromJournal /q dev-mdossantos\private$\siriona.connectivity.zanadu.input /f d:\dump.bin
+/c export /q dev-mdossantos\private$\siriona.connectivity.zanadu.input /f d:\dump.bin
 
 ==Import from dump==
 /c import /q dev-mdossantos\private$\siriona.connectivity.zanadu.input /f d:\dump.bin
