@@ -22,7 +22,7 @@ let toQueuePath (journalQueuePath : string) = journalQueuePath.Replace(";journal
 let list filter = 
     MessageQueue.GetPrivateQueuesByMachine(System.Environment.MachineName)
     |> Seq.filter (fun q -> q.Path.LastIndexOf(filter, System.StringComparison.InvariantCultureIgnoreCase) <> -1)
-    |> Seq.map (fun q -> q.Path)
+    |> Seq.map (fun q -> sprintf @"%s\%s" q.MachineName q.QueueName)
 
 let private toMessage (message : System.Messaging.Message) = 
     let reader = new StreamReader(message.BodyStream)
