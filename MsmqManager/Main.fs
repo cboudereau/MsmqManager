@@ -36,12 +36,12 @@ let main args =
             | t -> t
         
         let exported = export stream target
-        sprintf "%i message exported from queue %s to %s" (exported.messages |> Seq.length) exported.path filePath
+        sprintf "%i message(s) exported from queue %s to %s" (exported.messages |> Seq.length) exported.path filePath
     
     let importCommand filePath queuePath = 
         use stream = File.OpenRead filePath
         let imported = import stream queuePath
-        sprintf "%i message imported to queue %s from %s" (imported.messages |> Seq.length) imported.path filePath
+        sprintf "%i message(s) imported to queue %s from %s" (imported.messages |> Seq.length) imported.path filePath
     
     let boolToToggle toggle = 
         match toggle with
