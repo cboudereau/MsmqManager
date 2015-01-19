@@ -12,7 +12,7 @@ let main args =
           queuePath = ""
           filePath = "dump.bin" }
     
-    let tryDo f = 
+    let bootstrap f = 
         try 
             f() |> printfn "%s"
             0
@@ -23,7 +23,7 @@ let main args =
         | QueueNotFound msg -> 
             printfn "%s" msg
             -2
-        | _ as ex -> 
+        | ex -> 
             printfn "%s" ex.Message
             -3
     
@@ -53,7 +53,7 @@ let main args =
                                              |> journal toggle
                                              |> boolToToggle) queuePath
     
-    let run = 
+    let entryPoint = 
         fun () -> 
             (let usage = @"
 error, see usage : 
@@ -88,4 +88,4 @@ error, see usage :
              | EnableJournal -> journalCommand commandLines.queuePath true
              | DisableJournal -> journalCommand commandLines.queuePath false)
     
-    tryDo <| run
+    bootstrap <| entryPoint
