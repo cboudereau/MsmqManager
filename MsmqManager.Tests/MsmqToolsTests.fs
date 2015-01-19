@@ -1,0 +1,148 @@
+﻿module MsmqToolsTests
+
+open FsUnit
+open NUnit.Framework
+open MsmqTools
+open System.IO
+
+let getRandomQueuePath = fun () -> (sprintf "test%s" (System.Guid.NewGuid().ToString()) |> getLocalPrivateQueue)
+
+let runIntoQueue f = 
+    let queuePath = getRandomQueuePath()
+    try 
+        queuePath
+        |> create
+        |> should equal true
+        f (queuePath)
+    finally
+        queuePath
+        |> delete
+        |> should equal true
+
+[<Test>]
+let ``list available queue with filter``() = 
+    runIntoQueue (fun queuePath -> 
+        "Test"
+        |> list
+        |> Seq.length
+        |> should be (greaterThan 0))
+
+[<Test>]
+let ``activate journaling send message export and import``() = 
+    runIntoQueue (fun queuePath -> 
+        journal true queuePath |> should equal true
+        let message = 
+            sendMessage { body = "hello"
+                          label = "label" } queuePath
+        
+        let queue = queuePath |> receiveQueue
+        queue.messages |> should equal [ message ]
+        use stream = new MemoryStream()
+        
+        let exportedQueue = 
+            queuePath
+            |> getJournalQueue
+            |> export stream
+        
+        let importedQueue = import stream ""
+        importedQueue.path |> should equal queuePath
+        exportedQueue.messages |> should equal importedQueue.messages)
+
+[<Test>]
+let ``activate journaling``() = 
+    runIntoQueue (fun queuePath -> 
+        journal true queuePath |> should equal true
+        let message = 
+            sendMessage { body = "hello"
+                          label = "label" } queuePath
+        
+        let queue = queuePath |> receiveQueue
+        queue.messages |> should equal [ message ]
+        let actual = queuePath |> peekQueue
+        actual.messages |> should equal []
+        let queueJournalPath = getJournalQueue queuePath
+        let journalQueue = queueJournalPath |> receiveQueue
+        journalQueue.messages |> should equal queue.messages)
+
+[<Test>]
+let ``delete not existing queue return false``() = 
+    getRandomQueuePath()
+    |> delete
+    |> should equal false
+
+[<Test>]
+let ``create existing queue return false``() = 
+    runIntoQueue (fun queuePath -> 
+        queuePath
+        |> create
+        |> should equal false)
+
+[<Test>]
+let ``purge not exists queue return false``() = 
+    getRandomQueuePath()
+    |> purge
+    |> should equal false
+
+[<Test>]
+let ``export and import message from queue to stream``() = 
+    runIntoQueue (fun queuePath -> 
+        use stream = new MemoryStream()
+        queuePath
+        |> sendMessage { body = "hello"
+                         label = "label" }
+        |> ignore
+        let expectedQueue = peekQueue queuePath
+        export stream queuePath |> should equal expectedQueue
+        let imported = 
+            runIntoQueue (fun importedQueue -> 
+                let imported = import stream importedQueue
+                imported.path |> should equal importedQueue
+                imported)
+        imported.messages |> should equal expectedQueue.messages)
+
+[<Test>]
+let ``export and import into same queue``() = 
+    runIntoQueue (fun queuePath -> 
+        use stream = new MemoryStream()
+        queuePath
+        |> sendMessage { body = "hello"
+                         label = "label" }
+        |> ignore
+        let queue = queuePath |> peekQueue
+        export stream queuePath |> should equal queue
+        queuePath
+        |> purge
+        |> should equal true
+        import stream "" |> should equal queue)
+
+[<Test>]
+let ``fail when queue not exists``() = 
+    (fun () -> 
+    (getRandomQueuePath()
+     |> peekQueue
+     |> ignore))
+    |> should throw typeof<QueueNotFound>
+
+[<Test>]
+let ``Send and receive message``() = 
+    runIntoQueue (fun queuePath -> 
+        let message = 
+            { body = "hello"
+              label = "label" }
+        
+        let sendedMessage = queuePath |> sendMessage message
+        sendedMessage |> should equal message
+        let queue = peekQueue queuePath
+        queue.messages |> should equal [ message ])
+
+[<Test>]
+let ``purge queue``() = 
+    runIntoQueue (fun queuePath -> 
+        let message = 
+            queuePath |> sendMessage { body = "hello"
+                                       label = "label" }
+        queuePath
+        |> purge
+        |> should equal true
+        let queue = queuePath |> peekQueue
+        queue.messages |> should not' (equal [ message ]))

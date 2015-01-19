@@ -1,0 +1,35 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30501.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "MsmqManager", "MsmqManager\MsmqManager.fsproj", "{427FB048-816F-481F-BDE4-B9DE1B73D1DB}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "MsmqManager.Tests", "MsmqManager.Tests\MsmqManager.Tests.fsproj", "{34CDC10B-8A8F-4457-A3A9-6757158B4E21}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".nuget", ".nuget", "{CC812991-D781-4383-BD85-08F78D3F4020}"
+	ProjectSection(SolutionItems) = preProject
+		.nuget\NuGet.Config = .nuget\NuGet.Config
+		.nuget\NuGet.exe = .nuget\NuGet.exe
+		.nuget\NuGet.targets = .nuget\NuGet.targets
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{427FB048-816F-481F-BDE4-B9DE1B73D1DB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{427FB048-816F-481F-BDE4-B9DE1B73D1DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{427FB048-816F-481F-BDE4-B9DE1B73D1DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{427FB048-816F-481F-BDE4-B9DE1B73D1DB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{34CDC10B-8A8F-4457-A3A9-6757158B4E21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{34CDC10B-8A8F-4457-A3A9-6757158B4E21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{34CDC10B-8A8F-4457-A3A9-6757158B4E21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{34CDC10B-8A8F-4457-A3A9-6757158B4E21}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
