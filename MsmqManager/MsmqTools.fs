@@ -3,26 +3,41 @@
 open System.Messaging
 open System.IO
 open System.Runtime.Serialization.Formatters.Binary
+open System.Xml.Serialization
 
 exception QueueNotFound of string
 
+[<CLIMutable>]
 type Message = 
     { body : string
       label : string }
 
+[<CLIMutable>]
 type Queue = 
     { path : string
-      messages : Message seq }
+      messages : Message[] }
 
 let getPrivateQueue machineName name = sprintf @"%s\private$\%s" machineName name
-let getLocalPrivateQueue name = getPrivateQueue System.Environment.MachineName name
-let getJournalQueue queuePath = sprintf "%s;journal" queuePath
-let toQueuePath (journalQueuePath : string) = journalQueuePath.Replace(";journal", "")
+let getLocalPrivateQueue name = getPrivateQueue (System.Environment.MachineName.ToLower()) name
+let journalPrefix = ";journal"
+let getJournalQueue queuePath = sprintf "%s%s" queuePath journalPrefix
+let toQueuePath (journalQueuePath : string) = journalQueuePath.Replace(journalPrefix, "")
 
-let list filter = 
+let list (filter:string) = 
+    
+    let hasJournal = (filter.EndsWith(journalPrefix))
+
+    let patchSearch search = 
+        if(hasJournal) then search |> toQueuePath
+        else search
+    
+    let patchQueue queue = 
+        if(hasJournal) then queue |> getJournalQueue
+        else queue
+
     MessageQueue.GetPrivateQueuesByMachine(System.Environment.MachineName)
-    |> Seq.filter (fun q -> q.Path.LastIndexOf(filter, System.StringComparison.InvariantCultureIgnoreCase) <> -1)
-    |> Seq.map (fun q -> sprintf @"%s\%s" q.MachineName q.QueueName)
+    |> Seq.filter (fun q -> q.Path.LastIndexOf(filter |> patchSearch, System.StringComparison.InvariantCultureIgnoreCase) <> -1)
+    |> Seq.map (fun q -> sprintf @"%s\%s" q.MachineName q.QueueName |> patchQueue)
 
 let private toMessage (message : System.Messaging.Message) = 
     let reader = new StreamReader(message.BodyStream)
@@ -41,22 +56,24 @@ let peekQueue queuePath =
     let messages = 
         queue.GetAllMessages()
         |> Seq.map toMessage
-        |> Seq.toList
+        |> Seq.toArray
     { path = queue.Path
       messages = messages }
 
-let rec private receiveAllMessages messages (enumerator : MessageEnumerator) = 
-    match enumerator.MoveNext(), enumerator.RemoveCurrent(MessageQueueTransactionType.Single) with
-    | false, _ -> messages
-    | true, current -> receiveAllMessages ((current |> toMessage) :: messages) enumerator
+let private receiveAllMessages messages = 
+    let rec internalReceiveAllMessages (enumerator : MessageEnumerator) messages  = 
+        match enumerator.MoveNext(), enumerator.RemoveCurrent(MessageQueueTransactionType.Single) with
+        | false, _ -> messages
+        | true, current -> internalReceiveAllMessages enumerator ((current |> toMessage) :: messages) 
+    internalReceiveAllMessages messages []
 
 let receiveQueue queuePath = 
     let queue = queuePath |> mandatoryQueue
     { path = queue.Path
       messages = 
           queue.GetMessageEnumerator2()
-          |> receiveAllMessages []
-          |> List.toSeq }
+          |> receiveAllMessages
+          |> Seq.toArray }
 
 let purge queuePath = 
     match MessageQueue.Exists queuePath with
@@ -104,23 +121,30 @@ let toBegin (stream : Stream) =
         stream
     | _ -> stream
 
+let formatter = new XmlSerializer(typeof<Queue []>)
+
 let export (stream : Stream) from = 
-    let formatter = new BinaryFormatter()
-    let queue = from |> peekQueue
-    formatter.Serialize(stream, queue)
-    queue
+    let queuePaths = from |> list
+    
+    let queues = queuePaths |> Seq.map(peekQueue) |> Seq.toArray
+
+    formatter.Serialize(stream, queues)
+    queues
 
 let import (stream : Stream) tO = 
-    let formatter = new BinaryFormatter()
-    let queue = formatter.Deserialize(stream |> toBegin) :?> Queue
+    let queues = formatter.Deserialize(stream |> toBegin) :?> Queue []
     
-    let target = 
-        match tO with
-        | "" -> queue.path
-        | _ -> tO
-    queue.messages
-    |> Seq.map (fun m -> sendMessage m (target |> toQueuePath))
-    |> Seq.toList
-    |> ignore
-    let peekedQueue = peekQueue target
-    { peekedQueue with path = peekedQueue.path |> toQueuePath }
+    queues
+    |> Array.map(
+        fun queue ->
+            let target = 
+                match tO with
+                | "" -> queue.path
+                | _ -> tO
+            queue.messages
+            |> Seq.map (fun m -> sendMessage m (target |> toQueuePath))
+            |> Seq.toList
+            |> ignore
+            let peekedQueue = peekQueue target
+            { peekedQueue with path = peekedQueue.path |> toQueuePath }
+        )

@@ -6,6 +6,7 @@ open MsmqTools
 open System.IO
 
 let getRandomQueuePath = fun () -> (sprintf "test%s" (System.Guid.NewGuid().ToString()) |> getLocalPrivateQueue)
+let getMessages q = q.messages
 
 let runIntoQueue f = 
     let queuePath = getRandomQueuePath()
@@ -30,10 +31,12 @@ let ``list available queue with filter``() =
 [<Test>]
 let ``activate journaling send message export and import``() = 
     runIntoQueue (fun queuePath -> 
-        journal true queuePath |> should equal true
+        queuePath
+        |> journal true
+        |> should equal true
         let message = 
-            sendMessage { body = "hello"
-                          label = "label" } queuePath
+            queuePath |> sendMessage { body = "hello"
+                                       label = "label" }
         
         let queue = queuePath |> receiveQueue
         queue.messages |> should equal [ message ]
@@ -45,24 +48,30 @@ let ``activate journaling send message export and import``() =
             |> export stream
         
         let importedQueue = import stream ""
-        importedQueue.path |> should equal queuePath
-        exportedQueue.messages |> should equal importedQueue.messages)
+        importedQueue.[0].path |> should equal queuePath
+        importedQueue.[0].messages |> should equal exportedQueue.[0].messages)
 
 [<Test>]
 let ``activate journaling``() = 
     runIntoQueue (fun queuePath -> 
-        journal true queuePath |> should equal true
+        queuePath
+        |> journal true
+        |> should equal true
         let message = 
-            sendMessage { body = "hello"
-                          label = "label" } queuePath
+            queuePath |> sendMessage { body = "hello"
+                                       label = "label" }
         
         let queue = queuePath |> receiveQueue
         queue.messages |> should equal [ message ]
-        let actual = queuePath |> peekQueue
-        actual.messages |> should equal []
-        let queueJournalPath = getJournalQueue queuePath
-        let journalQueue = queueJournalPath |> receiveQueue
-        journalQueue.messages |> should equal queue.messages)
+        queuePath
+        |> peekQueue
+        |> getMessages
+        |> should equal []
+        queuePath
+        |> getJournalQueue
+        |> receiveQueue
+        |> getMessages
+        |> should equal queue.messages)
 
 [<Test>]
 let ``delete not existing queue return false``() = 
@@ -92,10 +101,10 @@ let ``export and import message from queue to stream``() =
                          label = "label" }
         |> ignore
         let expectedQueue = peekQueue queuePath
-        export stream queuePath |> should equal expectedQueue
+        export stream queuePath |> should equal [expectedQueue]
         let imported = 
             runIntoQueue (fun importedQueue -> 
-                let imported = import stream importedQueue
+                let imported = import stream importedQueue |> Seq.head
                 imported.path |> should equal importedQueue
                 imported)
         imported.messages |> should equal expectedQueue.messages)
@@ -109,11 +118,11 @@ let ``export and import into same queue``() =
                          label = "label" }
         |> ignore
         let queue = queuePath |> peekQueue
-        export stream queuePath |> should equal queue
+        export stream queuePath |> should equal [queue]
         queuePath
         |> purge
         |> should equal true
-        import stream "" |> should equal queue)
+        import stream "" |> should equal [queue])
 
 [<Test>]
 let ``fail when queue not exists``() = 

@@ -35,13 +35,18 @@ let main args =
             | "" -> raise (CommandLineException "missing parameter target")
             | t -> t
         
-        let exported = export stream target
-        sprintf "%i message(s) exported from queue %s to %s" (exported.messages |> Seq.length) exported.path filePath
+        let exportedQueues = export stream target
+        exportedQueues 
+        |> Seq.map(fun exported -> sprintf "%i message(s) exported from queue %s to %s" (exported.messages |> Seq.length) exported.path filePath)
+        |> String.concat System.Environment.NewLine
     
     let importCommand filePath queuePath = 
         use stream = File.OpenRead filePath
-        let imported = import stream queuePath
-        sprintf "%i message(s) imported to queue %s from %s" (imported.messages |> Seq.length) imported.path filePath
+        let importedQueues = import stream queuePath
+        
+        importedQueues
+        |> Seq.map(fun imported -> sprintf "%i message(s) imported to queue %s from %s" (imported.messages |> Seq.length) imported.path filePath)
+        |> String.concat System.Environment.NewLine
     
     let boolToToggle toggle = 
         match toggle with
