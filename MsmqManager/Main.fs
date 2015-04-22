@@ -54,9 +54,10 @@ let main args =
         | false -> "disabled"
     
     let journalCommand queuePath toggle = 
-        sprintf "journaling %s to queue %s" (queuePath
-                                             |> journal toggle
-                                             |> boolToToggle) queuePath
+        queuePath
+        |> journal toggle
+        |> Seq.map(fun (q,t)->sprintf "journaling %s to queue %s" (t |> boolToToggle) q)
+        |> String.concat System.Environment.NewLine
     
     let entryPoint = 
         fun () -> 

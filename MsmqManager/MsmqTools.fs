@@ -91,10 +91,15 @@ let delete queuePath =
         true
 
 let journal toggle queuePath = 
-    use queue = new MessageQueue(queuePath)
-    queue.UseJournalQueue <- toggle
-    queue.UseJournalQueue
+    let queues = list queuePath
 
+    queues 
+    |> Seq.map(
+        fun q -> 
+            use queue = new MessageQueue(q)
+            queue.UseJournalQueue <- toggle
+            q, queue.UseJournalQueue)
+    
 let create queuePath = 
     match MessageQueue.Exists queuePath with
     | false -> 

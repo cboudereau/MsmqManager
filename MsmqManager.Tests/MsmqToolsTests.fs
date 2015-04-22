@@ -42,14 +42,15 @@ let ``activate journaling send message export and import``() =
         queue.messages |> should equal [ message ]
         use stream = new MemoryStream()
         
-        let exportedQueue = 
+        let exportedQueues = 
             queuePath
             |> getJournalQueue
             |> export stream
         
-        let importedQueue = import stream ""
-        importedQueue.[0].path |> should equal queuePath
-        importedQueue.[0].messages |> should equal exportedQueue.[0].messages)
+        let importedQueues = import stream ""
+        importedQueues |> Seq.iter(fun q -> q.path |> should equal queuePath)
+
+        importedQueues.[0].messages |> should equal exportedQueues.[0].messages)
 
 [<Test>]
 let ``activate journaling``() = 
