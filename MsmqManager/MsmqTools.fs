@@ -38,6 +38,7 @@ let list (filter:string) =
     MessageQueue.GetPrivateQueuesByMachine(System.Environment.MachineName)
     |> Seq.filter (fun q -> q.Path.LastIndexOf(filter |> patchSearch, System.StringComparison.InvariantCultureIgnoreCase) <> -1)
     |> Seq.map (fun q -> sprintf @"%s\%s" q.MachineName q.QueueName |> patchQueue)
+    |> Seq.toList
 
 let private toMessage (message : System.Messaging.Message) = 
     let reader = new StreamReader(message.BodyStream)
@@ -51,14 +52,19 @@ let private mandatoryQueue queuePath =
     | true -> new MessageQueue(queuePath)
 
 let peekQueue queuePath = 
-    use queue = queuePath |> mandatoryQueue
+    let queues = queuePath |> list
     
-    let messages = 
-        queue.GetAllMessages()
-        |> Seq.map toMessage
-        |> Seq.toArray
-    { path = queue.Path
-      messages = messages }
+    queues
+    |> Seq.map(fun queue ->
+        use messageQueue = queue |> mandatoryQueue
+    
+        let messages = 
+            messageQueue.GetAllMessages()
+            |> Seq.map toMessage
+            |> Seq.toArray
+        { path = messageQueue.Path
+          messages = messages })
+    |> Seq.toList
 
 let private receiveAllMessages messages = 
     let rec internalReceiveAllMessages (enumerator : MessageEnumerator) messages  = 
@@ -68,12 +74,17 @@ let private receiveAllMessages messages =
     internalReceiveAllMessages messages []
 
 let receiveQueue queuePath = 
-    let queue = queuePath |> mandatoryQueue
-    { path = queue.Path
-      messages = 
-          queue.GetMessageEnumerator2()
-          |> receiveAllMessages
-          |> Seq.toArray }
+    let queues = queuePath |> list
+    
+    queues
+    |> Seq.map(fun queue ->
+            let messageQueue = queue |> mandatoryQueue
+            { path = messageQueue.Path
+              messages = 
+                  messageQueue.GetMessageEnumerator2()
+                  |> receiveAllMessages
+                  |> Seq.toArray })
+    |> Seq.toList
 
 let purge queuePath = 
     match MessageQueue.Exists queuePath with
@@ -84,11 +95,14 @@ let purge queuePath =
         true
 
 let delete queuePath = 
-    match MessageQueue.Exists queuePath with
-    | false -> false
-    | true -> 
-        MessageQueue.Delete(queuePath)
-        true
+    let queues = queuePath |> list
+    
+    queues
+    |> Seq.map(
+        fun queue ->
+            MessageQueue.Delete(queue)
+            queue)
+    |> Seq.toList
 
 let journal toggle queuePath = 
     let queues = list queuePath
@@ -99,6 +113,7 @@ let journal toggle queuePath =
             use queue = new MessageQueue(q)
             queue.UseJournalQueue <- toggle
             q, queue.UseJournalQueue)
+    |> Seq.toList
     
 let create queuePath = 
     match MessageQueue.Exists queuePath with
@@ -118,7 +133,7 @@ let sendMessage message queuePath =
     queue.Send(msmqMessage, MessageQueueTransactionType.Single)
     message
 
-let toBegin (stream : Stream) = 
+let private toBegin (stream : Stream) = 
     match stream with
     | :? MemoryStream as memoryStream -> 
         memoryStream.Flush()
@@ -126,12 +141,10 @@ let toBegin (stream : Stream) =
         stream
     | _ -> stream
 
-let formatter = new XmlSerializer(typeof<Queue []>)
+let private formatter = new XmlSerializer(typeof<Queue []>)
 
 let export (stream : Stream) from = 
-    let queuePaths = from |> list
-    
-    let queues = queuePaths |> Seq.map(peekQueue) |> Seq.toArray
+    let queues = from |> peekQueue |> Seq.toArray
 
     formatter.Serialize(stream, queues)
     queues
@@ -150,6 +163,6 @@ let import (stream : Stream) tO =
             |> Seq.map (fun m -> sendMessage m (target |> toQueuePath))
             |> Seq.toList
             |> ignore
-            let peekedQueue = peekQueue target
+            let peekedQueue = target |> peekQueue |> Seq.head
             { peekedQueue with path = peekedQueue.path |> toQueuePath }
         )

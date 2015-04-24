@@ -6,7 +6,7 @@ open MsmqTools
 open System.IO
 
 let getRandomQueuePath = fun () -> (sprintf "test%s" (System.Guid.NewGuid().ToString()) |> getLocalPrivateQueue)
-let getMessages q = q.messages
+let allMessages queues = queues |> Seq.collect(fun q -> q.messages)
 
 let runIntoQueue f = 
     let queuePath = getRandomQueuePath()
@@ -18,7 +18,7 @@ let runIntoQueue f =
     finally
         queuePath
         |> delete
-        |> should equal true
+        |> should equal [queuePath]
 
 [<Test>]
 let ``list available queue with filter``() = 
@@ -33,14 +33,13 @@ let ``activate journaling send message export and import``() =
     runIntoQueue (fun queuePath -> 
         queuePath
         |> journal true
-        |> should equal [(queuePath,true)]
-
+        |> should equal [ (queuePath, true) ]
         let message = 
             queuePath |> sendMessage { body = "hello"
                                        label = "label" }
         
-        let queue = queuePath |> receiveQueue
-        queue.messages |> should equal [ message ]
+        let messages = queuePath |> receiveQueue |> allMessages
+        messages |> should equal [ message ]
         use stream = new MemoryStream()
         
         let exportedQueues = 
@@ -50,7 +49,7 @@ let ``activate journaling send message export and import``() =
         
         let importedQueues = import stream ""
         importedQueues |> Seq.iter (fun q -> q.path |> should equal queuePath)
-        importedQueues.[0].messages |> should equal exportedQueues.[0].messages)
+        (importedQueues |> allMessages) |> should equal (exportedQueues |> allMessages))
 
 [<Test>]
 let ``activate journaling``() = 
@@ -62,23 +61,27 @@ let ``activate journaling``() =
             queuePath |> sendMessage { body = "hello"
                                        label = "label" }
         
-        let queue = queuePath |> receiveQueue
-        queue.messages |> should equal [ message ]
+        let queues = queuePath |> receiveQueue  
+
+        let messages = queues |> allMessages
+        messages |> should equal [ message ]
         queuePath
         |> peekQueue
-        |> getMessages
+        |> allMessages
         |> should equal []
         queuePath
         |> getJournalQueue
         |> receiveQueue
-        |> getMessages
-        |> should equal queue.messages)
+        |> allMessages
+        |> should equal messages)
 
 [<Test>]
 let ``delete not existing queue return false``() = 
-    getRandomQueuePath()
+    let randomQueuePath = getRandomQueuePath()
+    
+    randomQueuePath
     |> delete
-    |> should equal false
+    |> should equal []
 
 [<Test>]
 let ``create existing queue return false``() = 
@@ -101,7 +104,7 @@ let ``export and import message from queue to stream``() =
         |> sendMessage { body = "hello"
                          label = "label" }
         |> ignore
-        let expectedQueue = peekQueue queuePath
+        let expectedQueue = peekQueue queuePath |> Seq.head
         export stream queuePath |> should equal [ expectedQueue ]
         let imported = 
             runIntoQueue (fun importedQueue -> 
@@ -119,19 +122,17 @@ let ``export and import into same queue``() =
                          label = "label" }
         |> ignore
         let queue = queuePath |> peekQueue
-        export stream queuePath |> should equal [ queue ]
+        export stream queuePath |> should equal queue
         queuePath
         |> purge
         |> should equal true
-        import stream "" |> should equal [ queue ])
+        import stream "" |> should equal queue)
 
 [<Test>]
 let ``fail when queue not exists``() = 
-    (fun () -> 
-    (getRandomQueuePath()
-     |> peekQueue
-     |> ignore))
-    |> should throw typeof<QueueNotFound>
+    getRandomQueuePath()
+    |> peekQueue
+    |> should equal []
 
 [<Test>]
 let ``Send and receive message``() = 
@@ -142,7 +143,7 @@ let ``Send and receive message``() =
         
         let sendedMessage = queuePath |> sendMessage message
         sendedMessage |> should equal message
-        let queue = peekQueue queuePath
+        let queue = peekQueue queuePath |> Seq.head
         queue.messages |> should equal [ message ])
 
 [<Test>]
@@ -154,5 +155,8 @@ let ``purge queue``() =
         queuePath
         |> purge
         |> should equal true
-        let queue = queuePath |> peekQueue
+        let queue = 
+            queuePath
+            |> peekQueue
+            |> Seq.head
         queue.messages |> should not' (equal [ message ]))
