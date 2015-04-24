@@ -33,7 +33,8 @@ let ``activate journaling send message export and import``() =
     runIntoQueue (fun queuePath -> 
         queuePath
         |> journal true
-        |> should equal true
+        |> should equal [(queuePath,true)]
+
         let message = 
             queuePath |> sendMessage { body = "hello"
                                        label = "label" }
@@ -48,8 +49,7 @@ let ``activate journaling send message export and import``() =
             |> export stream
         
         let importedQueues = import stream ""
-        importedQueues |> Seq.iter(fun q -> q.path |> should equal queuePath)
-
+        importedQueues |> Seq.iter (fun q -> q.path |> should equal queuePath)
         importedQueues.[0].messages |> should equal exportedQueues.[0].messages)
 
 [<Test>]
@@ -57,7 +57,7 @@ let ``activate journaling``() =
     runIntoQueue (fun queuePath -> 
         queuePath
         |> journal true
-        |> should equal true
+        |> should equal [ (queuePath, true) ]
         let message = 
             queuePath |> sendMessage { body = "hello"
                                        label = "label" }
@@ -102,7 +102,7 @@ let ``export and import message from queue to stream``() =
                          label = "label" }
         |> ignore
         let expectedQueue = peekQueue queuePath
-        export stream queuePath |> should equal [expectedQueue]
+        export stream queuePath |> should equal [ expectedQueue ]
         let imported = 
             runIntoQueue (fun importedQueue -> 
                 let imported = import stream importedQueue |> Seq.head
@@ -119,11 +119,11 @@ let ``export and import into same queue``() =
                          label = "label" }
         |> ignore
         let queue = queuePath |> peekQueue
-        export stream queuePath |> should equal [queue]
+        export stream queuePath |> should equal [ queue ]
         queuePath
         |> purge
         |> should equal true
-        import stream "" |> should equal [queue])
+        import stream "" |> should equal [ queue ])
 
 [<Test>]
 let ``fail when queue not exists``() = 
