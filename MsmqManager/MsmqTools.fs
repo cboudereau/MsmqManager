@@ -164,5 +164,4 @@ let import (stream : Stream) tO =
             |> Seq.toList
             |> ignore
             let peekedQueue = target |> peekQueue |> Seq.head
-            { peekedQueue with path = peekedQueue.path |> toQueuePath }
-        )
+            { peekedQueue with path = peekedQueue.path |> toQueuePath })
