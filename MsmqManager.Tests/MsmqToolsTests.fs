@@ -14,7 +14,7 @@ let runIntoQueues f =
         |> delete 
         |> should equal [q]
     
-    let deleteWithAssertQueues queues = 
+    let deleteWithInfiniteConditionalStop queues = 
         queues 
         |> Seq.takeWhile (fun q -> q |> delete <> [])
         |> ignore
@@ -29,7 +29,7 @@ let runIntoQueues f =
     try
         f (queues |> Seq.map createWithAssert)
     finally
-        queues |> deleteWithAssertQueues
+        queues |> deleteWithInfiniteConditionalStop
 
 let runIntoQueue f = 
     runIntoQueues
