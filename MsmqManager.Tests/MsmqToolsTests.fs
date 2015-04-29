@@ -8,41 +8,46 @@ open System.IO
 let getRandomQueuePath = fun () -> (sprintf "test%s" (System.Guid.NewGuid().ToString()) |> getLocalPrivateQueue)
 let allMessages queues = queues |> Seq.collect(fun q -> q.messages)
 
-let runIntoQueues n f = 
+let runIntoQueues f = 
     let deleteWithAssert q = 
         q 
         |> delete 
         |> should equal [q]
     
-    let deleteWithAssertQueues queues = queues |> Seq.iter deleteWithAssert
+    let deleteWithAssertQueues queues = 
+        queues 
+        |> Seq.takeWhile (fun q -> q |> delete <> [])
+        |> ignore
 
-    let createRandomQueue() = 
-        let q = getRandomQueuePath()
+    let createWithAssert q = 
         q 
         |> create 
         |> should equal true
         q
     
-    let queues = seq { for i in 1 ..n do yield createRandomQueue() }
-
+    let queues = Seq.initInfinite <| fun _ -> getRandomQueuePath()
     try
-        f queues
+        f (queues |> Seq.map createWithAssert)
     finally
         queues |> deleteWithAssertQueues
 
 let runIntoQueue f = 
-    runIntoQueues 1 
+    runIntoQueues
         (fun queuePaths -> 
-            let queue = queuePaths |> Seq.exactlyOne
+            let queue = queuePaths |> Seq.take 1 |> Seq.exactlyOne
             f queue)
+
+let ``delete all test queue``() =
+    delete "test" |> Seq.length |> should be (greaterThan 0)
 
 [<Test>]
 let ``list available queue with filter``() = 
     runIntoQueue (fun queuePath ->
-            "Test"
-            |> list
-            |> Seq.length
-            |> should be (greaterThan 0))
+            let length = 
+                "Test"
+                |> list
+                |> Seq.length
+            length |> should be (greaterThan 0))
 
 [<Test>]
 let ``activate journaling send message export and import``() = 
