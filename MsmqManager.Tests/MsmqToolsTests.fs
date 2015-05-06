@@ -8,34 +8,25 @@ open System.IO
 let getRandomQueuePath = fun () -> (sprintf "test%s" (System.Guid.NewGuid().ToString()) |> getLocalPrivateQueue)
 let allMessages queues = queues |> Seq.collect(fun q -> q.messages)
 
-let runIntoQueues f = 
+let runIntoQueue f = 
     let deleteWithAssert q = 
         q 
         |> delete 
         |> should equal [q]
-    
-    let deleteWithInfiniteConditionalStop queues = 
-        queues 
-        |> Seq.takeWhile (fun q -> q |> delete <> [])
-        |> ignore
 
-    let createWithAssert q = 
+    let createWithAssert() = 
+        let q = getRandomQueuePath()
         q 
-        |> create 
+        |> create
         |> should equal true
         q
-    
-    let queues = Seq.initInfinite <| fun _ -> getRandomQueuePath()
-    try
-        f (queues |> Seq.map createWithAssert)
-    finally
-        queues |> deleteWithInfiniteConditionalStop
 
-let runIntoQueue f = 
-    runIntoQueues
-        (fun queuePaths -> 
-            let queue = queuePaths |> Seq.take 1 |> Seq.exactlyOne
-            f queue)
+    let q = createWithAssert()
+
+    try
+        f q
+    finally
+        q |> deleteWithAssert
 
 let ``delete all test queue``() =
     delete "test" |> Seq.length |> should be (greaterThan 0)
